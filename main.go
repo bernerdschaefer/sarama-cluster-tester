@@ -130,14 +130,17 @@ func consume(group string, topic string, addrs []string, cfg *cluster.Config) er
 	}
 
 	g.Go(func() error {
+		defer cancel()
 		found := map[string]struct{}{}
+		seen := 0
 
 		for {
 			select {
 			case i := <-results:
+				seen++
 				found[i] = struct{}{}
 
-				log.Printf("at=result found=%d", len(found))
+				log.Printf("at=result found=%d seen=%d", len(found), seen)
 
 				if len(found) == 1000 {
 					return nil
@@ -148,8 +151,8 @@ func consume(group string, topic string, addrs []string, cfg *cluster.Config) er
 		}
 	})
 
+	log.Printf("at=wait")
 	<-time.After(15 * time.Second)
-
 	close(start)
 
 	return g.Wait()
