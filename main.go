@@ -49,7 +49,7 @@ func main() {
 			log.Fatal(err)
 		}
 	case "consume":
-		if err := consume(cfg.GroupID, cfg.Topic, addrs, config); err != nil {
+		if err := consume(os.Args[2], cfg.Topic, addrs, config); err != nil {
 			log.Fatal(err)
 		}
 	default:
