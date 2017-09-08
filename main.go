@@ -123,6 +123,10 @@ func consume(group string, topic string, addrs []string, cfg *cluster.Config) er
 	start := make(chan struct{})
 	results := make(chan string)
 
+	g.Go(func() error {
+		return doConsumeBad(ctx, start, group, topic, addrs, cfg, results)
+	})
+
 	for i := 0; i < 4; i++ {
 		g.Go(func() error {
 			return doConsume(ctx, start, group, topic, addrs, cfg, results)
@@ -156,6 +160,46 @@ func consume(group string, topic string, addrs []string, cfg *cluster.Config) er
 	close(start)
 
 	return g.Wait()
+}
+
+// doConsumeBad consumes 10 messages without acknowledging them and then closes
+// the consumer.
+func doConsumeBad(ctx context.Context, start chan struct{}, group string, topic string, addrs []string, cfg *cluster.Config, results chan string) error {
+	cg, err := cluster.NewConsumer(addrs, group, []string{topic}, cfg)
+	if err != nil {
+		return err
+	}
+	defer cg.Close()
+
+	<-start
+
+	seen := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-cg.Messages():
+			seen++
+
+			dump(msg)
+
+			if seen >= 10 {
+				return nil
+			}
+		case err := <-cg.Errors():
+			return err
+		case not := <-cg.Notifications():
+			log.Printf(
+				"at=rebalance claimed=%+v released=%+v current=%+v",
+				not.Claimed,
+				not.Released,
+				not.Current,
+			)
+		}
+	}
+
+	return nil
 }
 
 func doConsume(ctx context.Context, start chan struct{}, group string, topic string, addrs []string, cfg *cluster.Config, results chan string) error {
