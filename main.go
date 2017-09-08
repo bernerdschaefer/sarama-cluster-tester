@@ -6,12 +6,14 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster"
 	"github.com/heroku/cedar/lib/kafka"
 	"github.com/joeshaw/envdecode"
 	"github.com/pborman/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 // Config is all the necessary kafka bits to bootstrap a client, consumer,
@@ -113,17 +115,65 @@ func stream(topic string, addrs []string, cfg *cluster.Config) error {
 }
 
 func consume(group string, topic string, addrs []string, cfg *cluster.Config) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	start := make(chan struct{})
+	results := make(chan string)
+
+	for i := 0; i < 4; i++ {
+		g.Go(func() error {
+			return doConsume(ctx, start, group, topic, addrs, cfg, results)
+		})
+	}
+
+	g.Go(func() error {
+		found := map[string]struct{}{}
+
+		for {
+			select {
+			case i := <-results:
+				found[i] = struct{}{}
+
+				if len(found) == 1000 {
+					return nil
+				}
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	})
+
+	<-time.After(15 * time.Second)
+
+	close(start)
+
+	return g.Wait()
+}
+
+func doConsume(ctx context.Context, start chan struct{}, group string, topic string, addrs []string, cfg *cluster.Config, results chan string) error {
 	cg, err := cluster.NewConsumer(addrs, group, []string{topic}, cfg)
 	if err != nil {
 		return err
 	}
 	defer cg.Close()
 
-	for {
+	<-start
 
+	for {
 		select {
+		case <-ctx.Done():
+			return nil
 		case msg := <-cg.Messages():
 			dump(msg)
+
+			select {
+			case results <- string(msg.Value):
+			case <-ctx.Done():
+				return nil
+			}
 
 			cg.MarkOffset(msg, "done")
 		case err := <-cg.Errors():

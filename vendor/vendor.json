@@ -124,6 +124,12 @@
 			"path": "golang.org/x/net/context",
 			"revision": "06dd6a6ff4c64aae2917cb9dd15b405d41a2be6f",
 			"revisionTime": "2017-09-07T18:01:41Z"
+		},
+		{
+			"checksumSHA1": "S0DP7Pn7sZUmXc55IzZnNvERu6s=",
+			"path": "golang.org/x/sync/errgroup",
+			"revision": "f52d1811a62927559de87708c8913c1650ce4f26",
+			"revisionTime": "2017-05-17T20:25:26Z"
 		}
 	],
 	"rootPath": "github.com/cyx/sarama-cluster-tester"
