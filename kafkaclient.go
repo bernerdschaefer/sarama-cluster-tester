@@ -42,6 +42,10 @@ func AddrsConfig(cfg Config) ([]string, *cluster.Config, error) {
 	config.Producer.Return.Errors = true
 	config.Producer.Return.Successes = true
 
+	if err := config.Validate(); err != nil {
+		return nil, nil, err
+	}
+
 	if err := configureTLS(config, cfg.Cert, cfg.Key, cfg.CACert); err != nil {
 		return nil, nil, err
 	}
