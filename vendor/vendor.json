@@ -65,8 +65,8 @@
 		{
 			"checksumSHA1": "ULdcIP8z71tqKt6AAxk0ihrsrVo=",
 			"path": "github.com/heroku/cedar/lib/kafka",
-			"revision": "06dd6a6ff4c64aae2917cb9dd15b405d41a2be6f",
-			"revisionTime": "2017-09-07T18:01:41Z"
+			"revision": "f310a7ec6713805f5bfc74edf3c8862c88a8053a",
+			"revisionTime": "2017-09-08T17:54:57Z"
 		},
 		{
 			"checksumSHA1": "+ao5OeNsFj1ZJqsaS55I3oAMrcY=",
@@ -126,5 +126,5 @@
 			"revisionTime": "2017-09-07T18:01:41Z"
 		}
 	],
-	"rootPath": "github.com/heroku/evbus-cluster"
+	"rootPath": "github.com/cyx/sarama-cluster-tester"
 }

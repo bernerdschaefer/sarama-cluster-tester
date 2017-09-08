@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster"
+	"github.com/heroku/cedar/lib/kafka"
 	"github.com/joeshaw/envdecode"
 	"github.com/pborman/uuid"
 )
@@ -39,6 +43,10 @@ func main() {
 		if err := produce(cfg.Topic, addrs, config); err != nil {
 			log.Fatal(err)
 		}
+	case "stream":
+		if err := stream(cfg.Topic, addrs, config); err != nil {
+			log.Fatal(err)
+		}
 	case "consume":
 	default:
 		println("Usage: consume | produce")
@@ -65,6 +73,35 @@ func produce(topic string, addrs []string, cfg *cluster.Config) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func stream(topic string, addrs []string, cfg *cluster.Config) error {
+	c, err := sarama.NewClient(addrs, &cfg.Config)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	cg, err := kafka.NewConsumerGroup(c, topic, kafka.WithStreamToCurrent())
+	if err != nil {
+		return err
+	}
+	defer cg.Close()
+
+	for {
+		msg, err := cg.GetMessage(context.TODO())
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return err
+		}
+
+		fmt.Printf("%+v\n", msg)
 	}
 
 	return nil
