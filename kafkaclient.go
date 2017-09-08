@@ -9,19 +9,6 @@ import (
 	"github.com/heroku/cedar/lib/kafka"
 )
 
-// Config is all the necessary kafka bits to bootstrap a client, consumer,
-// or producer.
-type Config struct {
-	CACert string `env:"KAFKA_TRUSTED_CERT"`
-	Cert   string `env:"KAFKA_CLIENT_CERT"`
-	Key    string `env:"KAFKA_CLIENT_CERT_KEY"`
-	URL    string `env:"KAFKA_URL,required"`
-
-	GroupID string `env:"KAFKA_GROUP_ID"`
-
-	ConsumerOffsetsInitial int64 `env:"KAFKA_CONSUMER_OFFSET_INITIAL,default=-2"`
-}
-
 // AddrsConfig takes Config and generates the broker addresses and
 // sarama.Config.
 func AddrsConfig(cfg Config) ([]string, *cluster.Config, error) {
