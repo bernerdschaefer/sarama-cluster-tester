@@ -1,3 +1,2 @@
-producer: evbus-cluster produce
-consumer: evbus-cluster consume
-checker: evbus-cluster check
+producer: sarama-cluster-tester produce
+consumer: sarama-cluster-tester consume $GROUP_ID
