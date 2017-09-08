@@ -85,7 +85,10 @@ func stream(topic string, addrs []string, cfg *cluster.Config) error {
 	}
 	defer c.Close()
 
-	cg, err := kafka.NewConsumerGroup(c, topic, kafka.WithStreamToCurrent())
+	cg, err := kafka.NewConsumerGroup(c, topic,
+		kafka.WithUpdatingOffsets(),
+		kafka.WithStreamToCurrent(),
+	)
 	if err != nil {
 		return err
 	}
