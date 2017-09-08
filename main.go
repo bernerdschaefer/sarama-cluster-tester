@@ -184,6 +184,12 @@ func doConsumeBad(ctx context.Context, start chan struct{}, group string, topic 
 
 			dump(msg)
 
+			select {
+			case results <- string(msg.Value):
+			case <-ctx.Done():
+				return nil
+			}
+
 			if seen >= 10 {
 				return nil
 			}
