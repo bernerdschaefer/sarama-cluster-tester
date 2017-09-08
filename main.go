@@ -137,6 +137,8 @@ func consume(group string, topic string, addrs []string, cfg *cluster.Config) er
 			case i := <-results:
 				found[i] = struct{}{}
 
+				log.Printf("at=result found=%d", len(found))
+
 				if len(found) == 1000 {
 					return nil
 				}
