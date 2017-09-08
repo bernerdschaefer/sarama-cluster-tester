@@ -22,6 +22,8 @@ var (
 )
 
 func main() {
+	sarama.Logger = log.New(os.Stderr, "[Sarama] ", log.LstdFlags)
+
 	var cfg Config
 	envdecode.MustStrictDecode(&cfg)
 
@@ -199,15 +201,6 @@ func consumeSetBit(addrs []string, config *cluster.Config, pool *redis.Pool) {
 	errors := 0
 	total := 0
 	tick := time.Tick(time.Second)
-	errtick := time.Tick(time.Second)
-
-	l := func(err error) {
-		select {
-		case <-errtick:
-			log.Println(err)
-		default:
-		}
-	}
 
 	// consume messages, watch errors and notifications
 	for {
@@ -219,33 +212,24 @@ func consumeSetBit(addrs []string, config *cluster.Config, pool *redis.Pool) {
 			total = 0
 			errors = 0
 
-		case msg, more := <-consumer.Messages():
-			if more {
-				v, err := strconv.Atoi(string(msg.Value))
-				if err != nil {
-					l(err)
-					continue
-				}
-
-				key := prefix + ":" + string(msg.Key)
-				_, err = conn.Do("SETBIT", key, v, 1)
-				if err != nil {
-					l(err)
-					errors++
-					continue
-				}
-
-				consumer.MarkOffset(msg, "") // mark message as processed
+		case msg := <-consumer.Messages():
+			v, err := strconv.Atoi(string(msg.Value))
+			if err != nil {
+				panic(err)
 			}
 
-		case err, more := <-consumer.Errors():
-			if more {
-				log.Printf("Error: %s\n", err.Error())
+			key := prefix + ":" + string(msg.Key)
+			_, err = conn.Do("SETBIT", key, v, 1)
+			if err != nil {
+				panic(err)
 			}
-		case ntf, more := <-consumer.Notifications():
-			if more {
-				log.Printf("Rebalanced: %+v\n", ntf)
-			}
+
+			consumer.MarkOffset(msg, "") // mark message as processed
+
+		case err := <-consumer.Errors():
+			log.Printf("Error: %s\n", err.Error())
+		case ntf := <-consumer.Notifications():
+			log.Printf("Rebalanced: %+v\n", ntf)
 		case <-signals:
 			return
 		}
