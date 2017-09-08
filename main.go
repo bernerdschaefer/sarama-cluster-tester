@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -48,6 +47,9 @@ func main() {
 			log.Fatal(err)
 		}
 	case "consume":
+		if err := consume(cfg.GroupID, cfg.Topic, addrs, config); err != nil {
+			log.Fatal(err)
+		}
 	default:
 		println("Usage: consume | produce")
 		os.Exit(1)
@@ -104,8 +106,48 @@ func stream(topic string, addrs []string, cfg *cluster.Config) error {
 			return err
 		}
 
-		fmt.Printf("%+v\n", msg)
+		dump(msg)
 	}
 
 	return nil
+}
+
+func consume(group string, topic string, addrs []string, cfg *cluster.Config) error {
+	cg, err := cluster.NewConsumer(addrs, group, []string{topic}, cfg)
+	if err != nil {
+		return err
+	}
+	defer cg.Close()
+
+	for {
+
+		select {
+		case msg := <-cg.Messages():
+			dump(msg)
+
+			cg.MarkOffset(msg, "done")
+		case err := <-cg.Errors():
+			return err
+		case not := <-cg.Notifications():
+			log.Printf(
+				"at=rebalance claimed=%+v released=%+v current=%+v",
+				not.Claimed,
+				not.Released,
+				not.Current,
+			)
+		}
+	}
+
+	return nil
+}
+
+func dump(msg *sarama.ConsumerMessage) {
+	log.Printf(
+		"at=msg topic=%s partition=%d offset=%d key=%s value=%s",
+		msg.Topic,
+		msg.Partition,
+		msg.Offset,
+		msg.Key,
+		msg.Value,
+	)
 }
