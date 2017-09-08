@@ -1,36 +1,54 @@
 # testing sarama cluster message guarantees
 
-## testing theory
+`sarama-cluster-tester produce` writes 1000 messages to the configured topic.
 
-1. You define N to be the total number of unique kafka keys
-2. You define M to be the total number of bits set (e.g. for a key K, M of 2 would mean
-   the following messages):
+`sarama-cluster-tester stream` prints all of the messsages.
 
-   ```
-   {key=K value=0}
-   {key=K value=1}
-   ```
+`sarama-clsuter-tester consume GROUP_ID` consumes the messages as a consumer group.
 
-3. You consume the topic, and do a SETBIT on a redis key.
-4. You verify that all keys end up with all 0..M bits set.
+### produce
 
-## findings
+The producer writes 1000 messages to the topic and then exits.
 
-### consumer=1
+This seeds the topic for use by consumer tests.
 
-With consumer=1, we're consistently able to arrive at the expected outcome, with all N keys
-having all M bits set.
+### consume
 
-### consumer>1
+Each consumer process starts 5 consumer groups.
 
-With consumer>1 of 4 successive runs, a minimum of 1 key, and a max of 4 (out
-of 100) had missing bits set. The number of bits missing were in the range of
-1 to 4 bits.
+Four of the consumers are well-behaved, meaning they:
 
-Tests were done for consumer=2, consumer=3, consumer=4, and the results were
-largely similar, that some lossiness was observed.
+  * consume messages until they're instructed to shut down
+  * deliver messages to the reporting routine
+  * acknowledge messages after reporting
 
-## future tests
+The other consumer is like the well-behaved ones, except:
 
-It _might_ be that the implementation of sarama-cluster is at fault here, or not.
-A similar test could easily be executed by using the official kafka confluent go library.
+  * it consumes 10 messages and then shuts down
+  * it does not acknowledge messages after they're reported
+
+A normal run of the consumer at a scale of 1, then, will process around 800
+messages (4/5 consumers), then pause for a bit while rebalancing is triggered
+due to the death of the bad consumer, and then process the remaining messages.
+
+At the end, it reports:
+
+```
+2017/09/08 19:51:17 at=result found=1000 seen=1010
+```
+
+Meaning that all 1000 messages were observed, and 10 were re-transmitted after
+the bad consumer died.
+
+Running the consumer at a scale of 2 behaves similarly. At the end, the two
+consumers report results like:
+
+```
+app[consumer.1]: 2017/09/08 19:54:18 at=result found=536 seen=536
+app[consumer.2]: 2017/09/08 19:54:18 at=result found=484 seen=484
+---
+app[consumer.2]: 2017/09/08 19:56:00 at=result found=652 seen=662
+app[consumer.1]: 2017/09/08 19:56:00 at=result found=352 seen=358
+```
+
+The number of results found is always >= 1000.
