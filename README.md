@@ -1,5 +1,7 @@
 # testing sarama cluster message guarantees
 
+heroku kafka:topics:create cluster-test-cyx --partitions 32 --replication-factor 3 --retention-time 24h
+
 ## testing theory
 
 1. You define N to be the total number of unique kafka keys
