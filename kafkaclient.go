@@ -31,8 +31,11 @@ func AddrsConfig(cfg Config) ([]string, *cluster.Config, error) {
 	}
 
 	config := cluster.NewConfig()
+	config.Version = sarama.V0_10_2_0
+
 	config.Consumer.Offsets.Initial = cfg.ConsumerOffsetsInitial
 	config.Consumer.Return.Errors = true
+
 	config.Group.Return.Notifications = true
 
 	config.Producer.RequiredAcks = sarama.WaitForAll
