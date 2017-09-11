@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/garyburd/redigo/redis"
@@ -47,11 +48,11 @@ func consumeConfluent(brokers []string, pool *redis.Pool) error {
 		"default.topic.config": kafka.ConfigMap{"auto.offset.reset": "earliest"},
 
 		// Opt into explicit rebalancing so we're notified about changes.
-		"go.application.rebalance.enable": "true",
+		"go.application.rebalance.enable": true,
 
 		// The event channel is noted to be faster than the Poll-based API.
-		"go.events.channel.enable": "true",
-		"go.events.channel.size":   "1000", // default
+		"go.events.channel.enable": true,
+		"go.events.channel.size":   1000, // default
 
 		// SSL setup
 		"security.protocol":        "ssl",
@@ -69,51 +70,61 @@ func consumeConfluent(brokers []string, pool *redis.Pool) error {
 	if err := consumer.Subscribe(os.Getenv("TOPIC"), nil); err != nil {
 		return errors.Wrap(err, "subscribe to topic")
 	}
+
+	tick := time.Tick(time.Second)
+	total := 0
+
 	for {
-		ev := <-consumer.Events()
+		select {
+		case <-tick:
+			log.Printf("at=tick count#consumer-total=%d", total)
+			total = 0
+		case ev := <-consumer.Events():
+			total++
 
-		switch e := ev.(type) {
-		case *kafka.Message:
-			v, err := strconv.Atoi(string(e.Value))
-			if err != nil {
-				return errors.Wrap(err, "invalid message value")
+			switch e := ev.(type) {
+			case *kafka.Message:
+				v, err := strconv.Atoi(string(e.Value))
+				if err != nil {
+					return errors.Wrap(err, "invalid message value")
+				}
+
+				key := prefix + ":" + string(e.Key)
+				_, err = conn.Do("SETBIT", key, v, 1)
+				if err != nil {
+					return errors.Wrap(err, "set redis bit")
+				}
+
+				consumer.CommitMessage(e)
+
+			case kafka.AssignedPartitions:
+				log.Printf("at=assigned-partitions partitions=%+v", e.Partitions)
+				if err := consumer.Assign(e.Partitions); err != nil {
+					return errors.Wrap(err, "assign partitions")
+				}
+
+			case kafka.RevokedPartitions:
+				log.Printf("at=revoked-partitions partitions=%+v", e.Partitions)
+				if err := consumer.Unassign(); err != nil {
+					return errors.Wrap(err, "unassign partitions")
+				}
+
+			case kafka.PartitionEOF:
+				// The consumer has reached the end of the partition. This is purely
+				// informational -- the consumer will keep trying to fetch messages for
+				// this partition.
+				log.Printf("at=partition-eof")
+
+			case kafka.OffsetsCommitted:
+				log.Printf("at=committed offsets=%+v", e.Error, e.Offsets)
+
+				if e.Error != nil {
+					return errors.Wrap(e.Error, "commit offset error")
+				}
+
+			case kafka.Error:
+				return errors.Wrap(e, "unknown error")
 			}
-
-			key := prefix + ":" + string(e.Key)
-			_, err = conn.Do("SETBIT", key, v, 1)
-			if err != nil {
-				return errors.Wrap(err, "set redis bit")
-			}
-
-			consumer.CommitMessage(e)
-
-		case kafka.AssignedPartitions:
-			log.Printf("at=assigned-partitions partitions=%+v", e.Partitions)
-			if err := consumer.Assign(e.Partitions); err != nil {
-				return errors.Wrap(err, "assign partitions")
-			}
-
-		case kafka.RevokedPartitions:
-			log.Printf("at=revoked-partitions partitions=%+v", e.Partitions)
-			if err := consumer.Unassign(); err != nil {
-				return errors.Wrap(err, "unassign partitions")
-			}
-
-		case kafka.PartitionEOF:
-			// The consumer has reached the end of the partition. This is purely
-			// informational -- the consumer will keep trying to fetch messages for
-			// this partition.
-			log.Printf("at=partition-eof")
-
-		case kafka.OffsetsCommitted:
-			log.Printf("at=committed offsets=%+v", e.Error, e.Offsets)
-
-			if e.Error != nil {
-				return errors.Wrap(e.Error, "commit offset error")
-			}
-
-		case kafka.Error:
-			return errors.Wrap(e, "unknown error")
 		}
 	}
 }

@@ -38,7 +38,10 @@ func main() {
 	case "consume":
 		consumeSetBit(addrs, config, pool)
 	case "consume-confluent":
-		consumeConfluent(addrs, pool)
+		err := consumeConfluent(addrs, pool)
+		if err != nil {
+			log.Fatal(err)
+		}
 	case "produce":
 		produce(addrs, config)
 	case "check":
