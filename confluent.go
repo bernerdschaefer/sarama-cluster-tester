@@ -72,9 +72,7 @@ func consumeConfluent(brokers []string, pool *redis.Pool) error {
 	}
 
 	tick := time.Tick(time.Second)
-	commitTick := time.Tick(5 * time.Second)
 	total := 0
-	partitions := []kafka.TopicPartition{}
 
 	for {
 		select {
@@ -82,24 +80,11 @@ func consumeConfluent(brokers []string, pool *redis.Pool) error {
 			log.Printf("at=tick count#consumer-total=%d", total)
 			total = 0
 
-		case <-commitTick:
-			start := time.Now()
-			_, err := consumer.CommitOffsets(partitions)
-			log.Printf("at=commit measure#commit-time=%s", time.Since(start))
-			if err != nil {
-				return errors.Wrap(err, "committing offsets")
-			}
-
 		case ev := <-consumer.Events():
 			total++
 
 			switch e := ev.(type) {
 			case *kafka.Message:
-				if partitions == nil {
-					log.Printf("at=no-partition") // message processed after we were unassigned
-					continue
-				}
-
 				v, err := strconv.Atoi(string(e.Value))
 				if err != nil {
 					return errors.Wrap(err, "invalid message value")
@@ -111,19 +96,15 @@ func consumeConfluent(brokers []string, pool *redis.Pool) error {
 					return errors.Wrap(err, "set redis bit")
 				}
 
-				partitions[int(e.TopicPartition.Partition)] = e.TopicPartition
+				consumer.CommitMessage(e)
 
 			case kafka.AssignedPartitions:
-				partitions = e.Partitions
-
 				log.Printf("at=assigned-partitions partitions=%+v", e.Partitions)
 				if err := consumer.Assign(e.Partitions); err != nil {
 					return errors.Wrap(err, "assign partitions")
 				}
 
 			case kafka.RevokedPartitions:
-				partitions = nil
-
 				log.Printf("at=revoked-partitions partitions=%+v", e.Partitions)
 				if err := consumer.Unassign(); err != nil {
 					return errors.Wrap(err, "unassign partitions")
