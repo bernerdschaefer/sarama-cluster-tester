@@ -37,6 +37,8 @@ func main() {
 	switch os.Args[1] {
 	case "consume":
 		consumeSetBit(addrs, config, pool)
+	case "consume-confluent":
+		consumeConfluent(addrs, pool)
 	case "produce":
 		produce(addrs, config)
 	case "check":
