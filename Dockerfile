@@ -21,3 +21,5 @@ RUN cd $GOPATH/src/github.com/cyx/sarama-cluster-tester && go build
 # USER app
 # WORKDIR /app
 # COPY --from=build /go/src/github.com/cyx/sarama-cluster-tester /app
+
+CMD /go/src/github.com/cyx/sarama-cluster-tester/sarama-cluster-tester consume-confluent

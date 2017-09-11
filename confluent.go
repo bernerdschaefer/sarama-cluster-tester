@@ -4,8 +4,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -74,8 +76,14 @@ func consumeConfluent(brokers []string, pool *redis.Pool) error {
 	tick := time.Tick(time.Second)
 	total := 0
 
+	// trap SIGINT to trigger a shutdown.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+
 	for {
 		select {
+		case <-signals:
+			return nil
 		case <-tick:
 			log.Printf("at=tick count#consumer-total=%d", total)
 			total = 0
